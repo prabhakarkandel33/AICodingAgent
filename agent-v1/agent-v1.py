@@ -67,7 +67,7 @@ class Agent:
         else:
             self.llm = None
         self.agent_messages = [
-            {
+{
                 "role":"system",
                 "content":SYSTEM_PROMPT,
             }
@@ -93,13 +93,22 @@ class Agent:
                     break
                 tool_call_count += 1
 
-                name = tool_call["name"]
-                args = tool_call["arguments"]
+            
     
-                if isinstance(args,str):
-                    args = json.loads(args)
-                    #in case of str jsonify
-
+                parsed_tool = parse_tool_calls(tool_call)
+                if isinstance(parsed_tool,ParseError):
+                    self.agent_messages.append(
+                        {"role":"tool","tool_call_id":tool_call["call_id"],
+                            "content":f"Tool Call error: {parsed_tool.raw} Reason: {parsed_tool.reason}"
+                         }
+                    )
+                    continue
+                name = parsed_tool.name
+                tool_call_id = parsed_tool.id
+                args = parsed_tool.args
+                
+                
+                
                 tool = next((t for t in self.tools if t.name==name),None)#search for the tool name from response in our registry probably better to define our registry as dict :(
                 if tool is None:
                     content = json.dumps(
@@ -108,7 +117,16 @@ class Agent:
                         }
                     )
                 else:
-                    content = json.dumps(tool.call(**args))
+                    validation_errors = validate_args(tool,args)
+                    if validation_errors == []:
+                        try:
+                            tool_response = tool.call(**args)
+                        except Exception as e:
+                            tool_response = str(e)
+                        print(f"Tool called successfully: {name} Response: {tool_response}") 
+                        content = json.dumps(tool_response)
+                    else:
+                        content = "\n".join(validation_errors)
 
                 self.agent_messages.append(
                     {
@@ -129,62 +147,7 @@ class Agent:
             
 
 
-        #self.agent_messages.append(
-        #        {"role":"assistant","content":response['message_content']}
-        #)
-        #print(response)
-        #while response['tool_calls'] != []:
-        #    tool_call_count = 0
-        #    for tool_call in response['tool_calls']:
-        #        tool_call_count += 1
-        #        if (tool_call_count >= self.MAX_TOOL_CALLS):
-        #            break
-               
-        #        found = 0
-        #        for tool in self.tools:
-        #            if tool.name == tool_call['name']:
-        #                #unpacking arguments....
-
-        #                args = tool_call['arguments']
-         #               args = json.loads(args)
-          #              print(args)
-           #             print("tool found")
-           #             tool_response = tool.call(**args)
-           #             print(f"Invoked Tool: {tool_call['name']} Response: {tool_response}")
-           #             self.agent_messages.append({
-           #                 "role":"tool",
-           #                 "tool_call_id":tool_call['call_id'],
-           #                "content":json.dumps(tool_response)
-           #              })
-           #             found = 1
-           #             break
-           #     
-
-          #      if found == 0:
-         #           self.agent_messages.append({
-         #               "role":"tool",
-         #               "tool_call_id":tool_call['call_id'],
-         #               "content":"Invalid tool name tool call not found"        
-         #            })
-                     
-
-                
-         #       print(self.agent_messages)
-
-          #      response = self.llm.generate(self.model,self.agent_messages,self.tools)
-                
-
-        
-           #     self.agent_messages.append(
-            #        {"role":"assistant",
-             #       "content":response['message_content']
-              #      }
-               # )
-        #response = self.llm.generate(self.model,self.agent_messages,self.tools)
-        #print(response)
-        #return response['message_content']
-
-        
+       
  
 agent = Agent(model="qwen/qwen-2.5-72b-instruct",
               api_key=os.getenv("OPENROUTER_API_KEY"),
