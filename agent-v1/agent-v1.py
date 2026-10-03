@@ -1,6 +1,7 @@
 from tool_registry import *
 from core_types import *
 from OpenRouterInterface import *
+from AnthropicInterface import *
 from typing import List
 import json
 
@@ -10,41 +11,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-"""
- 
-
-class Tool:
-
-
-    def __init__(self,func):
-        self.name = func.__name__
-        self.description = func.__doc__
-        self.func=func
-
-    def call(self,arguments):
-        return self.func(**arguments)
-
-
-class LLMToolCall(TypedDict):
-    call_type:str
-    call_id:str
-    name:str
-    arguments:dict[str,Any]
-
-
-
-class LLMResponse(TypedDict):
-    response_id:str
-    message_content:str | None
-    tokens_used: int
-    total_cost: float
-    tool_called: bool
-    tool_calls: List[LLMToolCall] | None
-
-{'response_id': 'gen-1790847767-GZlrXfg69vSaHCKQdV4y', 'message_content': None, 'tokens_used': 351, 'total_cost': 0.00012736, 'tool_called': True, 'tool_calls': [{'call_type': 'function', 'call_id': 'call_ksOmDD3ilOpmGWVi47QGdxbX', 'name': 'add', 'arguments': '{"a": 2, "b": 3}'}]}
-
-
-"""
 class Agent:
     def __init__(
         self,
@@ -64,19 +30,18 @@ class Agent:
         #in future can expand this
         if (self.provider == "openrouter"):
             self.llm = OpenRouterInterface(api_key)
+        elif (self.provider == "anthropic"):
+            self.llm = AnthropicInterface(api_key)
         else:
             self.llm = None
-        self.agent_messages = [
-{
-                "role":"system",
-                "content":SYSTEM_PROMPT,
-            }
-        ]
+        self.agent_messages = []
+        self.system_prompt = SYSTEM_PROMPT
         self.MAX_TOOL_CALLS=MAX_TOOL_CALLS
 
     def invoke(self,messages:Dict):
         self.agent_messages.append(messages)
         response = self.llm.generate(self.model,
+                                     self.system_prompt,
                                     self.agent_messages,
                                     self.tools
         )
@@ -84,6 +49,7 @@ class Agent:
             
         
         while response.get('tool_called') and response.get('tool_calls'):
+            #print("tool called by anthropic")
             self.agent_messages.append(
                     response['raw_message']
             )
@@ -97,10 +63,11 @@ class Agent:
     
                 parsed_tool = parse_tool_calls(tool_call)
                 if isinstance(parsed_tool,ParseError):
+                    tool_resp = self.llm.harness_tool_parse(
+                            tool_call["call_id"],name=tool_call['name'],content=f"Tool Call error: {parsed_tool.raw} Reason: {parsed_tool.reason}")
+ 
                     self.agent_messages.append(
-                        {"role":"tool","tool_call_id":tool_call["call_id"],
-                            "content":f"Tool Call error: {parsed_tool.raw} Reason: {parsed_tool.reason}"
-                         }
+                        tool_resp
                     )
                     continue
                 name = parsed_tool.name
@@ -127,18 +94,19 @@ class Agent:
                         content = json.dumps(tool_response)
                     else:
                         content = "\n".join(validation_errors)
-
+                
+                tool_resp = self.llm.harness_tool_parse(
+                        tool_id=tool_call["call_id"],
+                        name=tool_call["name"],
+                        content=content
+                )
                 self.agent_messages.append(
-                    {
-                        "role":"tool",
-                        "tool_call_id":tool_call["call_id"],
-                        "content":content,
-                    }
+                    tool_resp
                 )
             if tool_call_count >= self.MAX_TOOL_CALLS:
                 break
 
-            response = self.llm.generate(self.model,self.agent_messages,self.tools)
+            response = self.llm.generate(self.model,self.system_prompt,self.agent_messages,self.tools)
         self.agent_messages.append(
             response["raw_message"]
         )
@@ -162,5 +130,5 @@ while True:
         })
 
     print(data)
-              
+
 

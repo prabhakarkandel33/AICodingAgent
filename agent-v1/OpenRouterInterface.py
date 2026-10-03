@@ -3,11 +3,11 @@ import sys
 from typing import List
 from core_types import *
 from dotenv import load_dotenv
-import os
 import requests
 import json
 import inspect
-load_dotenv()
+from openrouter import OpenRouter
+
 
 """
 
@@ -64,6 +64,14 @@ class OpenRouterInterface(LLMInterface):
             }
         }
 
+    def harness_tool_parse(self,tool_id,content,name):
+        return {
+                "role":"tool",
+                "name":name,
+                "tool_call_id":tool_id,
+                "content":content
+            }
+
     def bind_tools(self,tools:List[Tool]):
         tool_schemas = []
         for tool in tools:
@@ -71,7 +79,13 @@ class OpenRouterInterface(LLMInterface):
 
         return tool_schemas
 
-    def generate(self,model:str,messages:List[dict],tools:List[Tool]=[]) -> LLMResponse:
+    def generate(self,model:str,SYSTEM_PROMPT:str,messages:List[dict],tools:List[Tool]=[]) -> LLMResponse:
+        system_message = {
+            "role":"system",
+            "content":SYSTEM_PROMPT,
+        }
+
+        messages = [system_message] + messages
         if not self.api_key:
             raise ValueError("Please provide an api key")
             return
@@ -79,32 +93,31 @@ class OpenRouterInterface(LLMInterface):
         if tools:
             tools = self.bind_tools(tools)
 
-        response = requests.post(
-                url = "https://openrouter.ai/api/v1/chat/completions",
-                headers = {
-                    "Authorization":"Bearer "+self.api_key,
-                },
-                data = json.dumps(
-                    {
-                        "model":model,
-                        "messages":messages,
-                        "tools":tools
-                    }
-                )
-            )
-        response = json.loads(response.text)
-        response_id = response['id']
-        message_content = response['choices'][0]['message']['content']
-        total_tokens = response['usage']['total_tokens']
-        total_cost = response['usage']['cost']
-        raw_message = response['choices'][0]['message']
 
+        open_router = OpenRouter(api_key = self.api_key)
+
+        response = open_router.chat.send(
+                model = model,
+                messages = messages,
+                tools=tools
+        )
         
+        response_id = response.id
+        message_content = response.choices[0].message.content
+        total_tokens = response.usage.total_tokens
+        total_cost = response.usage.cost
+        raw_message = response.choices[0].message
+
+        #print(raw_message) 
         #print(response['choices'][0]['message']['tool_calls'])
         #print(response['choices'][0]['message']['tool_calls'] == None) 
         
-        response_tool_calls = raw_message.get("tool_calls") or []
-        tool_called = len(response_tool_calls) > 0
+    
+        response_tool_calls = raw_message.tool_calls
+        
+        tool_called = False if response_tool_calls == None else True
+        
+        
         
             
         
@@ -117,10 +130,10 @@ class OpenRouterInterface(LLMInterface):
             for tool_call in response_tool_calls:
                     
                 tool_calls.append({
-                        'call_type':tool_call['type'],
-                        'call_id':tool_call['id'],
-                        'name':tool_call['function']['name'],
-                        'arguments':tool_call['function']['arguments']
+                        'call_type':tool_call.type,
+                        'call_id':tool_call.id,
+                        'name':tool_call.function.name,
+                        'arguments':tool_call.function.arguments
                     })
         
 
@@ -139,21 +152,7 @@ class OpenRouterInterface(LLMInterface):
             
                             
 
-def add(a:int,b:int):
-    """
-    Add two numbers together
-    """
-    return a + b
-            
-        
-#llm = OpenRouterInterface(api_key=os.getenv("OPENROUTER_API_KEY"))
-#data = llm.generate(model="qwen/qwen-2.5-72b-instruct",
-#             messages = [
-#             {"role":"user","content":"Add two numbers 2 and 3 explicitly return a tool call plz"}
- #            ] , tools=[
-#                        Tool(add)
-#]
-#)
+
 
     
 
