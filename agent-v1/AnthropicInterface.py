@@ -146,14 +146,20 @@ class AnthropicInterface(LLMInterface):
         message_content = ""
         tool_called = False
         tool_calls = []
-
+    
+        raw_agent_message = {
+            "role":"assistant",
+            "content":[]
+        }
         
         for chunk in response_content:
             if isinstance(chunk,TextBlock):
-                raw_agent_message = {
-                    "role":"assistant",
-                    "content":chunk.text
-                }
+                raw_agent_message["content"].append(
+                    {
+                        "type":"text",
+                        "text":chunk.text,
+                    }
+                )
 
                 message_content += chunk.text
             if isinstance(chunk,ToolUseBlock):
@@ -166,17 +172,14 @@ class AnthropicInterface(LLMInterface):
                         "arguments":chunk.input
                     }
                 )
-                raw_agent_message = {
-                    "role":"assistant",
-                    "content": [
-                        {
-                            "type":"tool_use",
-                            "id":chunk.id,
-                            "name":chunk.name,
-                            "input":chunk.input
-                        }
-                    ]
-                }
+                raw_agent_message["content"].append(
+                    {
+                        "type":"tool_use",
+                        "id":chunk.id,
+                        "name":chunk.name,
+                        "input":chunk.input
+                    }
+                )
                 
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
         

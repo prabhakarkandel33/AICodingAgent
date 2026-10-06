@@ -117,9 +117,9 @@ class Agent:
 
        
  
-agent = Agent(model="qwen/qwen-2.5-72b-instruct",
-              api_key=os.getenv("OPENROUTER_API_KEY"),
-              provider="openrouter",
+agent = Agent(model="claude-haiku-4-5-20251001",
+              api_key=os.getenv("ANTHROPIC_API_KEY"),
+              provider="anthropic",
               tools=[Tool(add),Tool(read_file),Tool(create_dir)
                 
               ],)
