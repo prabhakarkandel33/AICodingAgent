@@ -100,7 +100,7 @@ class AnthropicInterface(LLMInterface):
                 }
         }
 
-    def build_context(self,messages):
+    def build_context(self,messages,chr_budget=120000):
         cleaned_messages = []
 
         for message in messages:
@@ -113,7 +113,10 @@ class AnthropicInterface(LLMInterface):
                         del message['content'][idx]
                 cleaned_messages.append(message)
 
-        return cleaned_messages
+        return {
+                "cleaned_message":cleaned_messages ,
+                "compaction_required": len(str(cleaned_messages)) > 120000
+        }
 
 
     def harness_tool_parse(self,tool_id,content,name=""):

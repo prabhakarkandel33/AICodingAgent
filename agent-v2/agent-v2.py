@@ -7,6 +7,8 @@ import json
 
 import os
 from dotenv import load_dotenv
+from assets import COMPACTION_PROMPT
+
 
 load_dotenv()
 
@@ -38,9 +40,64 @@ class Agent:
         self.system_prompt = SYSTEM_PROMPT
         self.MAX_TOOL_CALLS=MAX_TOOL_CALLS
 
+    def compact(self):
+        """
+         if (len(str(cleaned_message)) > chr_budget) or (compaction==True):
+            
+            cleaned_message.append(
+                {
+                    "role":"user",
+                    "content":COMPACTION_PROMPT,
+                }
+            )
+
+            
+            response = self.generate(
+                model,
+                SYSTEM_PROMPT,
+                cleaned_message)
+            compacted_msg = response.get("message_content")
+
+            cleaned_message = []
+            cleaned_message.append(response["raw_message"])
+
+        """
+        self.agent_messages.append(
+                {
+                    "role":"user",
+                    "content":COMPACTION_PROMPT
+                }
+        )
+        response = self.llm.generate(self.model,
+                                     self.system_prompt,
+                                     self.agent_messages
+                                     )
+        self.agent_messages = []
+        print(response["message_content"])
+        self.agent_messages.append(response["raw_message"])
+                                     
+        
+
     def invoke(self,messages:Dict):
+        compaction = (messages["content"] == "/compact")
+        
+    
         self.agent_messages.append(messages)
-        self.agent_messages = self.llm.build_context(self.agent_messages)
+
+
+        context_response = self.llm.build_context(
+            messages = self.agent_messages
+        )
+        
+        self.agent_messages = context_response["cleaned_message"]
+
+        if (context_response["compaction_required"]) or compaction:
+            print("*"*40+"Compaction"+"*"*40)
+
+            self.compact()
+
+
+    
         response = self.llm.generate(self.model,
                                      self.system_prompt,
                                     self.agent_messages,
@@ -116,9 +173,12 @@ response['raw_message']
             
 
 
-       
+"""
+        claude-haiku-4-5-20251001
+        qwen/qwen-2.5-72b-instruct
+"""
  
-agent = Agent(model="claude-haiku-5-5",
+agent = Agent(model="claude-haiku-4-5-20251001",
               api_key=os.getenv("ANTHROPIC_API_KEY"),
               provider="anthropic",
               tools=[Tool(add),

@@ -9,6 +9,7 @@ import inspect
 from openrouter import OpenRouter
 
 
+
 """
 
     name:str
@@ -70,7 +71,7 @@ class OpenRouterInterface(LLMInterface):
                 "name":name,
                 "tool_call_id":tool_id,
                 "content":content
-            }
+}
 
     def bind_tools(self,tools:List[Tool]):
         tool_schemas = []
@@ -148,8 +149,9 @@ class OpenRouterInterface(LLMInterface):
 
                 
             }
-    def build_context(self,messages):
+    def build_context(self,messages,chr_budget=120000):
         cleaned_message = []
+        
 
         for message in messages:
             try:
@@ -159,8 +161,14 @@ class OpenRouterInterface(LLMInterface):
             except TypeError:
                 if message.role == 'assistant' and message.tool_calls == None:
                     cleaned_message.append(message)
+
+    
+       
         
-        return cleaned_message
+        return {
+                "compaction_required": len(str(cleaned_message)) > chr_budget,
+                "cleaned_message":cleaned_message
+        }
 
 
             
