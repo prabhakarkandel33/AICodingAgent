@@ -21,7 +21,9 @@ class Agent:
         tools:List[Tool],
         provider:str,
         MAX_TOOL_CALLS:int=10,
-        SYSTEM_PROMPT:str="You are a helpful AI assistant use your tool registry whenever applicable and on tool calls just one shot the thing"
+        SYSTEM_PROMPT:str="You are a helpful AI assistant use your tool registry whenever applicable and on tool calls just one shot the thing",
+        agent_truncation_limit:int=50000,
+        compaction_window:int=2
     ):
         self.model = model
         self.tools = tools
@@ -39,6 +41,8 @@ class Agent:
         self.agent_messages = []
         self.system_prompt = SYSTEM_PROMPT
         self.MAX_TOOL_CALLS=MAX_TOOL_CALLS
+        self.agent_truncation_limit = agent_truncation_limit
+        self.compaction_window=compaction_window
 
     def compact(self):
         """
@@ -62,19 +66,28 @@ class Agent:
             cleaned_message.append(response["raw_message"])
 
         """
+        if (len(self.agent_messages) <= self.compaction_window):
+            return
+
+        old = self.agent_messages[:-self.compaction_window]
+        recent = self.agent_messages[-self.compaction_window:]
+
+        self.agent_messages = old
+
         self.agent_messages.append(
                 {
                     "role":"user",
-                    "content":COMPACTION_PROMPT
+                    "content":COMPACTION_PROMPT,
                 }
         )
         response = self.llm.generate(self.model,
                                      self.system_prompt,
-                                     self.agent_messages
-                                     )
-        self.agent_messages = []
+                                     self.agent_messages,
+                                     tools = []
+        )
+        self.agent_messages = [response["raw_message"]] + recent
         print(response["message_content"])
-        self.agent_messages.append(response["raw_message"])
+
                                      
         
 
@@ -122,7 +135,8 @@ response['raw_message']
                 parsed_tool = parse_tool_calls(tool_call)
                 if isinstance(parsed_tool,ParseError):
                     tool_resp = self.llm.harness_tool_parse(
-                            tool_call["call_id"],name=tool_call['name'],content=f"Tool Call error: {parsed_tool.raw} Reason: {parsed_tool.reason}")
+                            tool_call["call_id"],name=tool_call['name'],
+                            content=f"Tool Call error: {parsed_tool.raw} Reason: {parsed_tool.reason}")
  
                     self.agent_messages.append(
                         tool_resp
@@ -148,8 +162,15 @@ response['raw_message']
                             tool_response = tool.call(**args)
                         except Exception as e:
                             tool_response = str(e)
-                        print(f"Tool called successfully: {name} Response: {tool_response}") 
-                        content = json.dumps(tool_response)
+                                                
+                        tool_response = json.dumps(tool_response)
+
+                        #truncation for tool calls
+                        MAX = self.agent_truncation_limit
+                        if (len(tool_response) > MAX):
+                            tool_response = tool_response[:MAX//2] + f"\n<Truncated {len(tool_response) - MAX} characters>" + tool_response[-MAX//2:]
+                        content = tool_response
+
                     else:
                         content = "\n".join(validation_errors)
                 

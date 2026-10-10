@@ -100,25 +100,18 @@ class AnthropicInterface(LLMInterface):
                 }
         }
 
-    def build_context(self,messages,chr_budget=120000):
-        cleaned_messages = []
-
-        for message in messages:
-            if message['role'] == 'user' and type(message['content']) == str:
-                cleaned_messages.append(message)
-
-            if message['role'] == 'assistant' and type(message['content']) == list:
-                for idx,data in enumerate(message['content']):
-                    if data['type'] != 'text':
-                        del message['content'][idx]
-                cleaned_messages.append(message)
-
+    def build_context(self,messages,chr_budget=120000,last_k=100,window_limit=200):
+        context_messages = messages[-last_k:] if len(messages) > window_limit else list(messages) 
+        
+           
+       
+        
         return {
-                "cleaned_message":cleaned_messages ,
-                "compaction_required": len(str(cleaned_messages)) > 120000
+                "compaction_required": len(str(context_messages)) > chr_budget,
+                "cleaned_message":context_messages
         }
 
-
+       
     def harness_tool_parse(self,tool_id,content,name=""):
         return {
                 "role":"user",

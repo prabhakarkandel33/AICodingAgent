@@ -149,25 +149,16 @@ class OpenRouterInterface(LLMInterface):
 
                 
             }
-    def build_context(self,messages,chr_budget=120000):
-        cleaned_message = []
+    def build_context(self,messages,chr_budget=120000,last_k=100,window_limit=200):
+
+        context_messages = messages[-last_k:] if len(messages) > window_limit else list(messages) 
         
-
-        for message in messages:
-            try:
-                message_role = message['role']
-                if message_role == 'user' or message_role == 'assistant':
-                    cleaned_message.append(message)
-            except TypeError:
-                if message.role == 'assistant' and message.tool_calls == None:
-                    cleaned_message.append(message)
-
-    
+           
        
         
         return {
-                "compaction_required": len(str(cleaned_message)) > chr_budget,
-                "cleaned_message":cleaned_message
+                "compaction_required": len(str(context_messages)) > chr_budget,
+                "cleaned_message":context_messages
         }
 
 
