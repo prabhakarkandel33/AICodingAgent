@@ -10,7 +10,7 @@ import inspect
 import os
 from anthropic import Anthropic
 from anthropic.types import RawContentBlockDeltaEvent,ParsedTextBlock,MessageStopEvent,ToolUseBlock,TextDelta
-
+from rich import print
 from dotenv import load_dotenv
 
 load_dotenv()

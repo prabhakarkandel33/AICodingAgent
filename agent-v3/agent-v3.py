@@ -8,6 +8,14 @@ import json
 import os
 from dotenv import load_dotenv
 from assets import COMPACTION_PROMPT
+from rich import print
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.text import Text
+from rich.control import Control
+
+
+
 
 
 load_dotenv()
@@ -23,7 +31,8 @@ class Agent:
         MAX_TOOL_CALLS:int=10,
         SYSTEM_PROMPT:str="You are a helpful AI assistant use your tool registry whenever applicable and on tool calls just one shot the thing",
         agent_truncation_limit:int=50000,
-        compaction_window:int=10
+        compaction_window:int=10,
+        console = Console(log_path=False)
 
         
     ):
@@ -31,6 +40,7 @@ class Agent:
         self.tools = tools
         
         self.provider = provider
+        self.console = console
 
 
         #in future can expand this
@@ -45,6 +55,11 @@ class Agent:
         self.MAX_TOOL_CALLS=MAX_TOOL_CALLS
         self.agent_truncation_limit = agent_truncation_limit
         self.compaction_window=compaction_window
+
+    def console_stream_handler(self,data):
+        self.console.print(data,end="")
+
+
 
     def compact(self):
         """
@@ -82,15 +97,18 @@ class Agent:
                     "content":COMPACTION_PROMPT,
                 }
         )
-        response = self.llm.generate(self.model,
+        response = self.llm.stream_response(self.model,
                                      self.system_prompt,
                                      self.agent_messages,
-                                     tools = []
+                                     tools = [],
+                                     on_stream=self.console_stream_handler
 
                                      ) 
 
         self.agent_messages = [response["raw_message"]] + recent
-        print(response["message_content"])
+        
+        self.console.log(f"\n Tokens used:{response["tokens_used"]}")
+        
 
                                      
         
@@ -109,14 +127,16 @@ class Agent:
         
         self.agent_messages = context_response["cleaned_message"]
 
+        
+
         if (context_response["compaction_required"]) or compaction:
             if (len(self.agent_messages) >= self.compaction_window):
-                print("*"*40+"Compaction"+"*"*40)
+                self.console.rule("Compaction")
 
                 self.compact()
             else:
-                print("Within window limit, no need for compaction")
-                print("*"*40)
+                self.console.print("[bold yellow]Within window limit, no need for compaction[/bold yellow]")
+     
                 return
             self.compact()
 
@@ -125,8 +145,13 @@ class Agent:
         response = self.llm.stream_response(self.model,
                                      self.system_prompt,
                                     self.agent_messages,
-                                    self.tools
+                                    self.tools,
+                                    self.console_stream_handler,
         )
+
+        self.console.print("\n")
+        self.console.log(f"[dim]Tokens used:{response["tokens_used"]}[/dim]",highlight=False)
+       
         tool_call_count = 0
             
         
@@ -197,7 +222,9 @@ response['raw_message']
                 break
 
 
-            response = self.llm.stream_response(self.model,self.system_prompt,self.agent_messages,self.tools)
+            response = self.llm.stream_response(self.model,self.system_prompt,self.agent_messages,self.tools,self.console_stream_handler)
+
+           
         self.agent_messages.append(
             response["raw_message"]
         )
@@ -224,14 +251,21 @@ agent = Agent(model="claude-haiku-4-5-20251001",
                      
                 
               ],)
+agent.console.clear()
+height = agent.console.height
+agent.console.print(Control.move_to_column(0,height),end="")
+agent.console.rule()
 while True:
+
     data = agent.invoke({
                     "role":"user",
-                    "content":input("prabhakar@ai---->")
+                    "content":Prompt.ask("prabhakar@ai---->")
         })
 
     print("\n")
     print(data) if data else ""
+    agent.console.rule()
+
 
     
 

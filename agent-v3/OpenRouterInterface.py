@@ -82,7 +82,7 @@ class OpenRouterInterface(LLMInterface):
 
 
     def stream_response(self,model:str,SYSTEM_PROMPT:str,messages:List[dict],
-                        tools:List[Tool]=[],on_text = lambda t: print(t,end="",flush=True)) -> LLMResponse:
+                        tools:List[Tool]=[],on_stream = lambda t: print(t,end="",flush=True)) -> LLMResponse:
         system_message = {
             "role":"system",
             "content":SYSTEM_PROMPT,
