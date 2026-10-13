@@ -80,6 +80,7 @@ class OpenRouterInterface(LLMInterface):
 
         return tool_schemas
 
+
     def stream_response(self,model:str,SYSTEM_PROMPT:str,messages:List[dict],
                         tools:List[Tool]=[],on_text = lambda t: print(t,end="",flush=True)) -> LLMResponse:
         system_message = {
@@ -242,6 +243,8 @@ class OpenRouterInterface(LLMInterface):
         #        message_content = chunk.choices[0].delta.content
         
         #return message_content
+        
+        
         response_id = response.id
         message_content = response.choices[0].message.content
         total_tokens = response.usage.total_tokens
@@ -249,6 +252,8 @@ class OpenRouterInterface(LLMInterface):
         raw_message = response.choices[0].message
 
         
+     
+    
         response_tool_calls = raw_message.tool_calls
         
         tool_called = False if response_tool_calls == None else True
@@ -295,8 +300,6 @@ class OpenRouterInterface(LLMInterface):
                 "compaction_required": len(str(context_messages)) > chr_budget,
                 "cleaned_message":context_messages
         }
-
-
 
 
 

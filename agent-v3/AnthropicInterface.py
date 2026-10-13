@@ -9,6 +9,7 @@ import json
 import inspect
 import os
 from anthropic import Anthropic
+from anthropic.types import RawContentBlockDeltaEvent,ParsedTextBlock,MessageStopEvent,ToolUseBlock,TextDelta
 
 from dotenv import load_dotenv
 
@@ -131,6 +132,96 @@ class AnthropicInterface(LLMInterface):
 
         return tool_schemas
 
+    def stream_response(self,model:str,SYSTEM_PROMPT:str,messages:List[dict],tools:List[Tool]=[],on_stream= lambda x: print(x,end="")) -> LLMResponse:
+        
+        #for index,message in enumerate(messages):
+        #    print(message)
+        #    if isinstance(message,TextBlock):
+        #        print("text block detected")
+        #        messages[index] = {
+        #            "role":"assistant",
+        #            "content":message.text,
+        #        }
+    
+        client = Anthropic(api_key=self.api_key)
+        tools = self.bind_tools(tools)
+        with client.messages.stream(
+                max_tokens=1024,
+                system=SYSTEM_PROMPT,
+                messages=messages,
+                model=model,
+                tools=tools
+        ) as stream:
+
+            message_content = ""
+            raw_agent_message = {
+                "role":"assistant",
+                "content":[]
+            }
+            tool_called = False
+            tools = []
+            tool_calls = []
+
+            for chunk in stream:
+                if isinstance(chunk,RawContentBlockDeltaEvent):
+                    if isinstance(chunk.delta,TextDelta):
+                        on_stream(chunk.delta.text)
+
+
+                if isinstance(chunk,MessageStopEvent):
+                    response_id = chunk.message.id
+
+                    for content in chunk.message.content:
+                        if isinstance(content,ParsedTextBlock):
+                            if content.text:
+                                message_content += content.text
+                                message_content = "\n"
+
+                        if isinstance(content,ToolUseBlock):
+                            tool_called = True
+                            tool_calls.append(
+                                {
+                                    "call_type":content.type,
+                                    "call_id":content.id,
+                                    "name":content.name,
+                                    "arguments":content.input
+                                }
+                            )
+                    
+                            raw_agent_message["content"].append(
+                                {
+                                    "type":"tool_use",
+                                    "id":content.id,
+                                    "name":content.name,
+                                    "input":content.input
+                                }
+                            )
+                    if chunk.message.usage:
+                        total_tokens = chunk.message.usage.input_tokens + chunk.message.usage.output_tokens
+
+
+            
+
+
+                
+
+
+     
+       
+        LLMResponse =  {
+            "response_id": response_id,
+            "message_content":message_content,
+            "tokens_used":total_tokens,
+            "total_cost": "",
+            "tool_called": tool_called,
+            "tool_calls":tool_calls,
+            "raw_message":raw_agent_message
+        }
+
+
+        return LLMResponse
+        
+
     def generate(self,model:str,SYSTEM_PROMPT:str,messages:List[dict],tools:List[Tool]=[]) -> LLMResponse:
         
         #for index,message in enumerate(messages):
@@ -158,7 +249,6 @@ class AnthropicInterface(LLMInterface):
         message_content = ""
         tool_called = False
         tool_calls = []
-    
         raw_agent_message = {
             "role":"assistant",
             "content":[]

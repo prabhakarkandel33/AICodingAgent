@@ -35,17 +35,6 @@ class LLMResponse(TypedDict):
     tool_calls: List[LLMToolCall] | None
     raw_message: Any
 
-class LLMStreamedResponse(TypedDict):
-    response_id:str
-    message_content:str | None
-    raw_message: Any
-    final_stream: bool
-    #tokens_used: int
-    #total_cost: float
-    #tool_called: bool
-    #tool_calls: List[LLMToolCall] | None
-
-
 
 @dataclass
 class ToolCall:

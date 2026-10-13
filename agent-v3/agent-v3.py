@@ -24,6 +24,8 @@ class Agent:
         SYSTEM_PROMPT:str="You are a helpful AI assistant use your tool registry whenever applicable and on tool calls just one shot the thing",
         agent_truncation_limit:int=50000,
         compaction_window:int=10
+
+        
     ):
         self.model = model
         self.tools = tools
@@ -84,6 +86,7 @@ class Agent:
                                      self.system_prompt,
                                      self.agent_messages,
                                      tools = []
+
                                      ) 
 
         self.agent_messages = [response["raw_message"]] + recent
@@ -115,6 +118,9 @@ class Agent:
                 print("Within window limit, no need for compaction")
                 print("*"*40)
                 return
+            self.compact()
+
+
     
         response = self.llm.stream_response(self.model,
                                      self.system_prompt,
@@ -190,7 +196,8 @@ response['raw_message']
             if tool_call_count >= self.MAX_TOOL_CALLS:
                 break
 
-            response = self.llm.generate(self.model,self.system_prompt,self.agent_messages,self.tools)
+
+            response = self.llm.stream_response(self.model,self.system_prompt,self.agent_messages,self.tools)
         self.agent_messages.append(
             response["raw_message"]
         )
@@ -198,15 +205,14 @@ response['raw_message']
 
             
 
-
 """
         claude-haiku-4-5-20251001
         qwen/qwen-2.5-72b-instruct
 """
  
-agent = Agent(model="qwen/qwen-2.5-72b-instruct",
-              api_key=os.getenv("OPENROUTER_API_KEY"),
-              provider="openrouter",
+agent = Agent(model="claude-haiku-4-5-20251001",
+              api_key=os.getenv("ANTHROPIC_API_KEY"),
+              provider="anthropic",
               tools=[Tool(add),
                      Tool(read_file),
                      Tool(create_dir),
@@ -223,7 +229,9 @@ while True:
                     "role":"user",
                     "content":input("prabhakar@ai---->")
         })
+
     print("\n")
     print(data) if data else ""
 
+    
 
